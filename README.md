@@ -1,110 +1,116 @@
 # shan-proverbs
 
-**A TikTok-sourced Shan/Tai proverbs corpus with NLP processing via local n8n Docker workflow.**
+**A TikTok-sourced Shan/Tai proverbs corpus with automated NLP processing via Telegram bot, Google Sheets, n8n Docker, and ShanNLP.**
 
-This project automates the collection, normalization, and storage of Shan/Tai proverbs shared by TikTok creators, enabling downstream NLP analysis, language preservation, and corpus building for low-resource Tai languages.
+This project automates the entire workflow of collecting Shan/Tai proverbs from TikTok creators through a Telegram bot, storing them in Google Sheets, processing with NLP tools, and pushing cleaned data back to the repository. It enables corpus building, language preservation, and downstream NLP analysis for low-resource Tai languages.
 
-## 🎯 Project Overview
+## 🚀 Project Workflow
 
-- **Source**: TikTok videos and captions containing Shan/Tai proverbs
-- **Collection**: Manual curation + automated integration via n8n
-- **Processing**: Text normalization, Unicode handling, and optional LLM-based annotation
-- **Storage**: JSON/CSV formats for easy integration with NLP pipelines
-- **Orchestration**: n8n running in Docker for reproducible, local-first workflows
+```
+TikTok Creators
+     ↓
+Telegram Bot (Collection)
+     ↓
+Google Sheets (Raw Data Storage)
+     ↓
+n8n Docker Workflow
+     ├─→ Download from Google Sheets
+     ├─→ Process with ShanNLP Library
+     │  ├─ Tokenization (word_tokenize)
+     │  ├─ Text normalization
+     │  ├─ Digit/date conversion
+     │  └─ Unicode standardization
+     ├─→ Enrich & Clean Proverbs
+     └─→ Git Push to Repository
+     ↓
+shan-proverbs Repository (Final Corpus)
+     ↓
+NLP Analysis & Research
+```
 
 ## 📁 Repository Structure
 
 ```
 .
 ├── README.md                      # This file
-├── proverbs.json                  # Main proverbs corpus (Shan text + definitions)
-├── shan_proverbs_extra.json       # Extended corpus with additional metadata
-├── docker-compose.yml             # Docker setup for n8n (optional)
-├── n8n-workflows/                 # n8n workflow JSON exports
-│   └── shan-proverbs-processor.json
-└── data/                          # Local storage volume mount
+├── proverbs.json                  # Main proverbs corpus (processed by n8n)
+├── shan_proverbs_extra.json       # Extended corpus with metadata
+├── docker-compose.yml             # Docker setup for n8n
+├── n8n-workflows/                 # n8n workflow JSON files
+│   └── telegram-to-repo.json      # Main workflow: Google Sheets → ShanNLP → Git Push
+└── data/
     └── exports/
         ├── shan_proverbs.csv
         └── shan_proverbs_clean.json
 ```
 
+## 🔄 Data Collection Pipeline
+
+### Stage 1: Telegram Bot Collection
+Your Telegram bot collects Shan proverbs shared by TikTok creators and stores raw data in Google Sheets with these fields:
+- Proverb text (original Shan)
+- Creator name/ID
+- TikTok link
+- Timestamp
+- Optional notes
+
+### Stage 2: Google Sheets Storage
+Data is stored in a Google Sheet with structured columns for easy import into n8n.
+
+### Stage 3: n8n Automated Processing
+The n8n Docker container runs a scheduled workflow that:
+
+1. **Authenticates** with Google Sheets API
+2. **Downloads** all new proverbs from the spreadsheet
+3. **Processes** using ShanNLP library:
+   - Text normalization and Unicode standardization
+   - Word tokenization using maximal matching or newmm algorithm
+   - Digit/date/keyboard conversion utilities
+4. **Cleans** and deduplicates data
+5. **Enriches** with metadata
+6. **Exports** to JSON/CSV formats
+7. **Commits & Pushes** to GitHub repository
+
+### Stage 4: Repository Storage
+Processed proverbs are stored in this repository for version control and collaboration.
+
 ## 📦 Data Format
 
 ### JSON Structure
-
-Each proverb entry follows this structure:
-
 ```json
 {
   "id": "unique-id-001",
   "proverb_shan": "ပိုင်ဆိုင်သည့် စကား",
   "proverb_thai": "สุภาษิต ในภาษาไทย",
   "english_translation": "Meaning in English",
-  "explanation": "Context and cultural significance",
-  "source_url": "https://www.tiktok.com/@username/video/...",
-  "source_creator": "TikTok creator username",
-  "created_at": "2025-01-04T15:30:00Z",
+  "tokens": ["ပိုင်ဆိုင်", "သည့်", "စကား"],
+  "source_creator": "TikTok username",
+  "source_url": "https://www.tiktok.com/@creator/video/...",
+  "collected_at": "2025-01-04T15:30:00Z",
+  "processed_at": "2025-01-04T16:45:00Z",
   "tags": ["wisdom", "culture", "tradition"]
 }
 ```
 
-### CSV Format
-
-For analysis and integration with data tools:
-
-| id | proverb_shan | english_translation | source_url | created_at |
-|----|--------------|---------------------|------------|------------|
-| unique-id-001 | ပိုင်ဆိုင်သည့် စကား | Meaning in English | https://... | 2025-01-04 |
-
-## 🐳 Local Setup with Docker & n8n
+## 🐳 n8n Docker Setup
 
 ### Prerequisites
-
-- Docker and Docker Compose installed
-- n8n image (auto-pulled on first run)
-- Optional: Python 3.8+ for additional NLP analysis
+- Docker and Docker Compose
+- n8n image
+- Google Sheets API credentials
+- GitHub personal access token (for git push)
+- ShanNLP library installed in n8n environment
 
 ### Quick Start
 
-1. **Create n8n persistent volume:**
-
+#### 1. Create persistent volumes
 ```bash
 docker volume create n8n_data
 ```
 
-2. **Start n8n container:**
+#### 2. Start n8n with Docker Compose
 
-```bash
-docker run -it --rm \
-  --name n8n \
-  -p 5678:5678 \
-  -v n8n_data:/home/node/.n8n \
-  -v $(pwd)/data:/home/node/data \
-  docker.n8n.io/n8nio/n8n
-```
-
-3. **Access n8n UI:**
-
-Open `http://localhost:5678` in your browser
-
-4. **Import workflow:**
-
-- Use the web UI to import `n8n-workflows/shan-proverbs-processor.json`
-- Or copy the JSON directly into n8n's workflow editor
-
-5. **Configure data paths:**
-
-- Update File Read node to point to your input data location
-- Set File Write node output to `/home/node/data/exports/`
-
-6. **Run the workflow:**
-
-- Click "Execute Workflow" to process your proverbs
-- Check the `data/exports/` folder for cleaned output
-
-### Using docker-compose.yml
-
-Alternatively, create a `docker-compose.yml` file:
+Create a `docker-compose.yml`:
 
 ```yaml
 version: '3.8'
@@ -120,8 +126,10 @@ services:
       - ./data:/home/node/data
     environment:
       - N8N_EDITOR_BASE_URL=http://localhost:5678
+      - WEBHOOK_TUNNEL_URL=http://localhost:5678/
     networks:
       - n8n-network
+    restart: unless-stopped
 
 volumes:
   n8n_data:
@@ -131,95 +139,237 @@ networks:
     driver: bridge
 ```
 
-Then run:
-
+Start the service:
 ```bash
-docker-compose up
+docker-compose up -d
 ```
 
-## 🔄 Workflow Overview
+#### 3. Access n8n UI
+Open `http://localhost:5678` in your browser
 
-The n8n workflow processes proverbs through these stages:
+#### 4. Configure n8n Credentials
 
-1. **Input** → Read from JSON/CSV file or HTTP API
-2. **Normalization** → Unicode normalization, deduplication, trimming
-3. **Cleaning** → Remove non-Shan characters, standardize text
-4. **Enrichment** (optional) → Add translations, explanations via LLM
-5. **Output** → Write to CSV/JSON files in `/home/node/data/exports/`
+**Google Sheets API**
+- In n8n, create a new credential: Google Sheets OAuth2
+- Authenticate with your Google account
+- Grant permission to access Google Sheets
 
-## 📊 NLP Integration
+**GitHub API**
+- Create GitHub Personal Access Token with `repo` and `workflow` scopes
+- Add token to n8n GitHub credentials
 
-Once exported, use the corpus with popular NLP libraries:
+#### 5. Import the Workflow
+- Import `n8n-workflows/telegram-to-repo.json`
+- Configure node parameters:
+  - Google Sheet ID
+  - Column mappings
+  - Repository URL and branch
+  - ShanNLP processing options
 
-### Python Example
+#### 6. Schedule the Workflow
+- Set trigger to run on schedule (e.g., daily at 2 AM)
+- Or trigger manually from n8n UI
 
+## 📊 ShanNLP Integration
+
+The n8n workflow uses the ShanNLP library for text processing:
+
+### Word Tokenization
+```python
+from shannlp import word_tokenize
+
+text = "ပိုင်ဆိုင်သည့် စကား"
+
+# Method 1: Maximal Matching (fast)
+tokens = word_tokenize(text, engine='mm')
+# Output: ['ပိုင်ဆိုင်', 'သည့်', 'စကား']
+
+# Method 2: newmm (PyThaiNLP-based)
+tokens = word_tokenize(text, engine='newmm')
+```
+
+### Utility Functions in n8n
+- `digit_to_text()` - Convert digits to Shan words
+- `num_to_shanword()` - Convert numbers to Shan text
+- `shanword_to_date()` - Parse Shan date formats
+- `convert_years()` - Convert between calendar systems (AD, BE, GA, MO)
+- `eng_to_shn()` - Keyboard conversion (English to Shan)
+
+## 🛠️ n8n Workflow Nodes
+
+The main workflow includes these node types:
+
+1. **Trigger Node**: Schedule or manual webhook
+2. **Google Sheets Node**: Read data from spreadsheet
+3. **Function Node**: JavaScript for data transformation
+4. **HTTP Request Node**: Call ShanNLP API (if exposed)
+5. **Code Node**: Python execution for ShanNLP processing
+6. **File Write Node**: Save processed data
+7. **Git Node**: Clone, commit, and push to repository
+8. **Webhook Node**: Optional notifications
+
+## 📝 Adding ShanNLP to n8n Docker
+
+To use ShanNLP in n8n, you have two options:
+
+### Option 1: Python Function in Code Node (Recommended)
+Add ShanNLP to the n8n environment by extending the Docker image:
+
+```dockerfile
+FROM docker.n8n.io/n8nio/n8n:latest
+
+USER root
+RUN apt-get update && apt-get install -y python3-pip
+RUN pip install shannlp
+USER node
+```
+
+Build and run:
+```bash
+docker build -t n8n-shannlp .
+docker run -it --rm -p 5678:5678 n8n-shannlp
+```
+
+### Option 2: Separate Python Service
+Run ShanNLP as a microservice in another container and call it via HTTP from n8n.
+
+## 🔐 Environment Variables
+
+Create a `.env` file for sensitive data:
+
+```bash
+# Google Sheets
+GOOGLE_SHEET_ID=your-sheet-id-here
+GOOGLE_API_KEY=your-api-key
+
+# GitHub
+GITHUB_TOKEN=your-personal-access-token
+GITHUB_REPO_URL=https://github.com/Alexpeain/shan-proverbs.git
+GIT_USER_NAME=Alexpeain
+GIT_USER_EMAIL=your-email@example.com
+
+# n8n
+N8N_EDITOR_BASE_URL=http://localhost:5678
+```
+
+## 🔗 Related Projects
+
+- **ShanNLP** - NLP tools for Shan language processing
+  - Repository: https://github.com/Alexpeain/ShanNLP
+  - Features: Tokenization, digit conversion, date conversion, keyboard conversion
+  - Inspired by PyThaiNLP
+
+- **Telegram Bot** - Collects proverbs from TikTok creators
+  - Stores data in Google Sheets
+  - Validates Shan text input
+
+## 💡 Development & Customization
+
+### Modifying the Workflow
+1. Open n8n UI at `http://localhost:5678`
+2. Edit the imported workflow
+3. Test individual nodes
+4. Export updated workflow as JSON
+5. Save to `n8n-workflows/` directory
+
+### Adding New Processing Steps
+- Use ShanNLP utilities for additional text processing
+- Add filtering/validation nodes
+- Integrate with other APIs or services
+- Export to different formats (Parquet, SQLite, etc.)
+
+### Testing
 ```python
 import json
-import pandas as pd
-from pathlib import Path
+from shannlp import word_tokenize
 
-# Load proverbs
+# Load processed data
 with open('data/exports/shan_proverbs_clean.json') as f:
     proverbs = json.load(f)
 
-# Convert to DataFrame
-df = pd.DataFrame(proverbs)
-
-# Basic statistics
-print(f"Total proverbs: {len(df)}")
-print(f"Unique creators: {df['source_creator'].nunique()}")
-
-# Example: Tokenization for Shan text
-from pythainlp.tokenize import word_tokenize
-
-for idx, row in df.iterrows():
-    tokens = word_tokenize(row['proverb_shan'], engine='newmm')
-    print(f"{row['id']}: {tokens}")
+# Test tokenization
+for proverb in proverbs[:5]:
+    tokens = word_tokenize(proverb['proverb_shan'])
+    print(f"{proverb['id']}: {tokens}")
 ```
 
-## 🛠️ Development
+## 📚 NLP Analysis Examples
 
-### Adding New Proverbs
+### Frequency Analysis
+```python
+import json
+from collections import Counter
+from shannlp import word_tokenize
 
-1. Edit `proverbs.json` or `shan_proverbs_extra.json` directly
-2. Follow the JSON structure above
-3. Commit and push to trigger n8n workflow (if scheduled)
+with open('data/exports/shan_proverbs_clean.json') as f:
+    proverbs = json.load(f)
 
-### Extending the Workflow
+# Collect all tokens
+all_tokens = []
+for proverb in proverbs:
+    tokens = word_tokenize(proverb['proverb_shan'])
+    all_tokens.extend(tokens)
 
-- Add sentiment analysis nodes in n8n
-- Integrate database output (PostgreSQL, SQLite)
-- Add scheduled scraping from TikTok (with API credentials)
-- Export to different formats (Parquet, Excel)
-
-## 📝 License
-
-This project is for language preservation and educational purposes. Please respect intellectual property rights when collecting TikTok content.
-
-- **Code**: MIT License
-- **Data**: See individual video creators' terms and conditions
+# Get frequency
+freq = Counter(all_tokens)
+print("Top 20 most common words:")
+for word, count in freq.most_common(20):
+    print(f"{word}: {count}")
+```
 
 ## 🤝 Contributing
 
-Contributions welcome! Please:
+Contributions are welcome! Please:
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/add-proverbs`
-3. Commit changes: `git commit -m 'Add new Shan proverbs'`
-4. Push to branch: `git push origin feature/add-proverbs`
-5. Open a Pull Request
+2. Create a feature branch: `git checkout -b feature/improve-workflow`
+3. Make changes (to JSON files, workflows, or documentation)
+4. Commit: `git commit -m 'feat: improve n8n workflow for ShanNLP integration'`
+5. Push: `git push origin feature/improve-workflow`
+6. Open a Pull Request
+
+### Areas for Contribution
+- Improving tokenization accuracy
+- Adding more ShanNLP utilities to the workflow
+- Expanding the proverbs corpus
+- Creating analysis notebooks
+- Improving documentation
+
+## 📄 License
+
+This project is for language preservation and educational purposes.
+
+- **Code**: MIT License
+- **Data**: Respect TikTok creator rights and terms of service
+- **Processed Data**: Available for research and non-commercial use
 
 ## 📚 Resources
 
 - [n8n Documentation](https://docs.n8n.io/)
 - [Docker Documentation](https://docs.docker.com/)
-- [PyThaiNLP](https://github.com/PyThaiNLP/pythainlp) - Tai language tokenization
-- [Shan Language Resources](https://en.wikipedia.org/wiki/Shan_language)
+- [ShanNLP Repository](https://github.com/Alexpeain/ShanNLP)
+- [Google Sheets API](https://developers.google.com/sheets/api)
+- [PyThaiNLP](https://github.com/PyThaiNLP/pythainlp) - Parent project inspiration
+- [Shan Language](https://en.wikipedia.org/wiki/Shan_language)
 
 ## 👤 Author
 
 **Alexpeain** - Self-taught developer focused on NLP for Shan/Tai languages and language preservation.
 
+- GitHub: [@Alexpeain](https://github.com/Alexpeain)
+- Projects: Myanmar Book Reviews, ShanNLP, DSA NagBot, Accountability Board
+- Location: Shan State, Myanmar
+
 ---
 
-**Last updated**: January 2025
+**Last updated**: January 2026
+
+---
+
+## 📞 Support
+
+For issues, questions, or suggestions:
+- Open an issue on GitHub
+- Check existing documentation
+- Review n8n workflow logs for debugging
+- Consult ShanNLP project for NLP-specific questions
