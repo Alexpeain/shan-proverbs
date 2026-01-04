@@ -57,6 +57,126 @@ Your Telegram bot collects Shan proverbs shared by TikTok creators and stores ra
 ### Stage 2: Google Sheets Storage
 Data is stored in a Google Sheet with structured columns for easy import into n8n.
 
+### Data Validation & Cleaning in Google Sheets
+
+Before n8n processes your data, ensure quality with these best practices in your Google Sheet:
+
+#### 1. **Shan Text Validation**
+- Use data validation to accept only Shan Unicode characters
+  - Go to `Data` → `Data validation`
+  - Create custom formula: `=AND(REGEX(A2, "[\u1000-\u109F]+"))` to check for Shan characters
+  - Set error alert: "Please enter valid Shan text"
+- Check for mixed scripts (avoid English/Burmese in Shan proverb column)
+
+#### 2. **Required Fields Check**
+- Mark these columns as mandatory (no empty cells):
+  - Proverb text (original Shan)
+  - Creator name/TikTok username
+  - TikTok link (must start with `https://www.tiktok.com/`)
+  - Timestamp
+- Use conditional formatting to highlight empty required cells in red
+
+#### 3. **URL Validation**
+- Validate TikTok links with data validation formula:
+  ```
+  =AND(NOT(ISBLANK(C2)), ISNUMBER(SEARCH("tiktok.com", C2)))
+  ```
+- Ensure URLs are clickable and formatted consistently
+- Remove any shortened URLs; use full TikTok video links
+
+#### 4. **Remove Duplicates**
+- Regularly run `Data` → `Data cleanup` → `Remove duplicates`
+- Check for:
+  - Identical proverb text from same creator
+  - Duplicate rows with minor spacing differences
+  - Same content with different timestamps
+
+#### 5. **Clean Whitespace**
+- Use a helper column with formula: `=TRIM(CLEAN(A2))`
+- This removes:
+  - Leading/trailing spaces
+  - Extra spaces between words
+  - Non-printing characters
+- Copy cleaned values back to original column using paste special (values only)
+
+#### 6. **Consistent Formatting**
+- **Timestamps**: Use standard ISO 8601 format `YYYY-MM-DDTHH:MM:SSZ`
+  - Google Sheets formula: `=TEXT(NOW(), "YYYY-MM-DDTHH:MM:SSZ")`
+- **Creator names**: Use Title Case (e.g., "Creator Name" not "CREATOR NAME")
+- **TikTok links**: Remove `?is_copy_url=1&is_from_webapp=v1` query parameters
+
+#### 7. **Add Quality Score Column**
+Create a helper column to rate data quality (1-5 scale):
+```
+=COUNTIF(B2:F2,"<>")/COUNTA(B2:F2)*5
+```
+Filter to show only scores ≥ 4 before n8n processing
+
+#### 8. **Text Length Checks**
+- Proverb should be 10-500 characters (avoid single word entries)
+  - Use formula: `=AND(LEN(A2)>=10, LEN(A2)<=500)`
+- Creator name: 2-50 characters
+- Use conditional formatting to highlight outliers
+
+#### 9. **Manual Review Process**
+Before n8n syncs:
+1. Sort by `created_at` to identify recent entries
+2. Read through for context and accuracy
+3. Mark suspicious entries with a "Review" flag column
+4. Fix or delete flagged entries before processing
+5. Keep a backup sheet of "raw unreviewed data"
+
+#### 10. **Google Sheets Best Practices**
+- **Freeze header row**: `View` → `Freeze` → `1 row`
+- **Alternate row colors**: Select data → `Format` → `Alternating colors` for readability
+- **Data validation dropdown**: For creator names, use a list of approved creators
+- **Comments**: Add notes next to questionable entries for context
+- **Version history**: Enable to track changes over time
+
+#### 11. **Automated Cleaning with Formulas**
+
+Create a "Cleaned Data" sheet with these formulas:
+
+```excel
+# Column A - Cleaned Proverb Text
+=IF(AND(LEN(TRIM(A_raw))>10, REGEX(TRIM(A_raw), "[\u1000-\u109F]+")), TRIM(A_raw), "")
+
+# Column B - Creator (Titlecase)
+=IF(LEN(B_raw)>0, PROPER(TRIM(B_raw)), "")
+
+# Column C - TikTok URL (clean parameters)
+=IF(AND(NOT(ISBLANK(C_raw)), ISNUMBER(SEARCH("tiktok.com", C_raw))), 
+   REGEXREPLACE(C_raw, "\\\\?.*", ""), "")
+
+# Column D - Timestamp (ISO format)
+=IF(ISDATE(D_raw), TEXT(D_raw, "YYYY-MM-DDTHH:MM:SSZ"), "")
+```
+
+Then copy cleaned data back as values before n8n imports.
+
+#### 12. **n8n Pre-flight Checks**
+
+Before importing to n8n, add this validation in a "Status" column:
+
+```excel
+=IF(COUNTIF(A2:D2,"<>")<>4, "MISSING_FIELDS",
+  IF(LEN(A2)<10, "PROVERB_TOO_SHORT",
+  IF(ISERROR(SEARCH("tiktok.com", C2)), "INVALID_URL",
+  "READY_TO_PROCESS")))
+```
+
+Filter to show only "READY_TO_PROCESS" rows before n8n export.
+
+### Recommended Workflow
+
+1. **Daily**: Review newly added entries in Google Sheets
+2. **Weekly**: Run duplicate check and whitespace cleanup
+3. **Before n8n sync**: Apply all validation formulas and filter for "READY_TO_PROCESS"
+4. **After n8n processing**: Compare results with original to catch processing errors
+5. **Monthly**: Audit data quality and update validation rules as needed
+
+
+
 ### Stage 3: n8n Automated Processing
 The n8n Docker container runs a scheduled workflow that:
 
