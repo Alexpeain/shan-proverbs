@@ -80,10 +80,10 @@ Processed proverbs are stored in this repository for version control and collabo
 ```json
 {
   "id": "unique-id-001",
-  "proverb_shan": "ပိုင်ဆိုင်သည့် စကား",
-  "proverb_thai": "สุภาษิต ในภาษาไทย",
+  "proverb_shan": "",
+  "definition": "",
   "english_translation": "Meaning in English",
-  "tokens": ["ပိုင်ဆိုင်", "သည့်", "စကား"],
+  "tokens": ["", "", ""],
   "source_creator": "TikTok username",
   "source_url": "https://www.tiktok.com/@creator/video/...",
   "collected_at": "2025-01-04T15:30:00Z",
@@ -178,11 +178,11 @@ The n8n workflow uses the ShanNLP library for text processing:
 ```python
 from shannlp import word_tokenize
 
-text = "ပိုင်ဆိုင်သည့် စကား"
+text = ""
 
 # Method 1: Maximal Matching (fast)
 tokens = word_tokenize(text, engine='mm')
-# Output: ['ပိုင်ဆိုင်', 'သည့်', 'စကား']
+# Output: ['', '', '']
 
 # Method 2: newmm (PyThaiNLP-based)
 tokens = word_tokenize(text, engine='newmm')
